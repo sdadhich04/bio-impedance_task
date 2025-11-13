@@ -1,12 +1,11 @@
 import sys
 import re
 import serial
-import threading
 from collections import deque
 from PyQt5 import QtWidgets, QtCore
 import pyqtgraph as pg
-import logging
-import sys
+import os
+from datetime import datetime
 sys.path.append('/home/tpt-finder/Desktop/brl_data/brl_data')
 import brl_data
 
@@ -14,12 +13,16 @@ import brl_data
 '''
 Instructions:
 run deactivate if (venv) is active
-run source esp32-env/bin/activate
+run "source esp32-env/bin/activate"
 
-calibrate by clicking on the monitor at the bottom of the ide to run the c code
-make sure to exit the serial monitor before running this gui
+calibrate by clicking on the monitor at the bottom of the IDE to run the C code
+make sure to exit the serial monitor before running this GUI
 run python gui.py
 '''
+
+today = datetime.now().strftime("%Y-%m-%d")
+data_subfolder = os.path.join("data", today)
+os.makedirs(data_subfolder, exist_ok=True)
 
 df = brl_data.datafile(
     descrip_str="ESP32_Impedance_Monitor",
@@ -27,33 +30,40 @@ df = brl_data.datafile(
     testtype="single"
 )
 
-
 df.set_folders(
-    datafolder="data",
+    datafolder=data_subfolder,
     gitfolder="."
 )
 
 df.set_metadata(
-    names=["Impedance", "Phase"],
-    types=[float, float],
-    notes=["Measured impedance magnitude (Ω)", "Measured phase (°)"]
+    names=["Impedance", "Phase", "Material"],
+    types=[float, float, str],
+    notes=[
+        "Measured impedance magnitude (Ω)",
+        "Measured phase (°)",
+        "Material under test"
+    ]
 )
 
 df.open(mode="w")
 
 
-class SerialReader(QtCore.QObject):
+class SerialReader(QtCore.QThread):
     impedance_received = QtCore.pyqtSignal(float, float)
 
     def __init__(self, port, baudrate=115200):
         super().__init__()
-        self.ser = serial.Serial(port, baudrate, timeout=1)
+        self.port = port
+        self.baudrate = baudrate
         self.running = True
-        self.thread = threading.Thread(target=self.read_serial)
-        self.thread.daemon = True
-        self.thread.start()
 
-    def read_serial(self):
+    def run(self):
+        try:
+            ser = serial.Serial(self.port, self.baudrate, timeout=1)
+        except Exception as e:
+            print("Failed to open serial port:", e)
+            return
+
         impedance_pattern = re.compile(r"impedance magnitude: ([0-9]+\.[0-9]+)")
         phase_pattern = re.compile(r"Calculated phase: (-?[0-9]+\.[0-9]+)")
 
@@ -62,7 +72,9 @@ class SerialReader(QtCore.QObject):
 
         while self.running:
             try:
-                line = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                if not ser.is_open:
+                    break
+                line = ser.readline().decode('utf-8', errors='ignore').strip()
 
                 imp_match = impedance_pattern.search(line)
                 if imp_match:
@@ -79,26 +91,40 @@ class SerialReader(QtCore.QObject):
 
             except Exception as e:
                 print("Serial read error:", e)
+                break
+
+        if ser.is_open:
+            ser.close()
 
     def stop(self):
         self.running = False
-        if self.ser.is_open:
-            self.ser.close()
+        self.wait(1000)
 
 
 class ImpedanceGUI(QtWidgets.QMainWindow):
     def __init__(self, port):
         super().__init__()
         self.setWindowTitle("ESP32 Impedance Monitor")
-        self.resize(600, 400)
+        self.resize(600, 500)
 
-        self.label_impedance = QtWidgets.QLabel("Latest Impedance: -- Ω", self)
+        material_layout = QtWidgets.QHBoxLayout()
+        self.material_label = QtWidgets.QLabel("Material:")
+        self.material_input = QtWidgets.QLineEdit()
+        self.material_input.setPlaceholderText("Enter material name")
+        material_layout.addWidget(self.material_label)
+        material_layout.addWidget(self.material_input)
+
+        self.label_impedance = QtWidgets.QLabel("Latest Impedance: -- Ω")
         self.label_impedance.setAlignment(QtCore.Qt.AlignCenter)
         self.label_impedance.setStyleSheet("font-size: 20px;")
 
-        self.label_phase = QtWidgets.QLabel("Latest Phase: -- °", self)
+        self.label_phase = QtWidgets.QLabel("Latest Phase: -- °")
         self.label_phase.setAlignment(QtCore.Qt.AlignCenter)
         self.label_phase.setStyleSheet("font-size: 16px;")
+
+        self.label_recording = QtWidgets.QLabel("Recording: OFF")
+        self.label_recording.setAlignment(QtCore.Qt.AlignCenter)
+        self.label_recording.setStyleSheet("font-size: 16px; color: red;")
 
         self.plot_widget = pg.PlotWidget(title="Real-time Impedance Plot")
         self.plot_widget.setLabel('left', 'Impedance (Ω)')
@@ -108,8 +134,10 @@ class ImpedanceGUI(QtWidgets.QMainWindow):
         self.plot_data = deque(maxlen=200)
 
         layout = QtWidgets.QVBoxLayout()
+        layout.addLayout(material_layout)
         layout.addWidget(self.label_impedance)
         layout.addWidget(self.label_phase)
+        layout.addWidget(self.label_recording)
         layout.addWidget(self.plot_widget)
 
         central_widget = QtWidgets.QWidget()
@@ -118,7 +146,9 @@ class ImpedanceGUI(QtWidgets.QMainWindow):
 
         self.serial_reader = SerialReader(port)
         self.serial_reader.impedance_received.connect(self.handle_new_data)
-        self.last_log_time = 0
+        self.serial_reader.start()
+
+        self.recording = False 
 
     def handle_new_data(self, impedance, phase):
         phase = phase - 293.738
@@ -127,8 +157,22 @@ class ImpedanceGUI(QtWidgets.QMainWindow):
         self.plot_data.append(impedance)
         self.plot_curve.setData(list(self.plot_data))
 
-        df.write([impedance, phase])
+        if self.recording:
+            material_name = self.material_input.text().strip() or "Unknown"
+            df.write([impedance, phase, material_name])
 
+    def keyPressEvent(self, event):
+        if event.key() == QtCore.Qt.Key_Space:
+            self.recording = not self.recording
+            if self.recording:
+                self.label_recording.setText("Recording: ON")
+                self.label_recording.setStyleSheet("font-size: 16px; color: green;")
+                material_name = self.material_input.text().strip() or "Unknown"
+                print(f"Recording started for material: {material_name}")
+            else:
+                self.label_recording.setText("Recording: OFF")
+                self.label_recording.setStyleSheet("font-size: 16px; color: red;")
+                print("Recording stopped")
 
     def closeEvent(self, event):
         self.serial_reader.stop()
@@ -136,10 +180,8 @@ class ImpedanceGUI(QtWidgets.QMainWindow):
         event.accept()
 
 
-
-
 if __name__ == "__main__":
-    port = "/dev/ttyACM0"  
+    port = "/dev/ttyACM0"
     app = QtWidgets.QApplication(sys.argv)
     window = ImpedanceGUI(port)
     window.show()

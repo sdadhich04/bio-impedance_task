@@ -1,0 +1,24 @@
+{
+   "Dependencies": "['gui_V2.py', 'brl_data.py', 'icarus.py']",
+   "Ncols": 3,
+   "Nrows": 0,
+   "GitLatestCommit": "Git: commit b6ccaccc6f158709106dc397cc21a710eb10e3db adding logging",
+   "Names": [
+      "Impedance",
+      "Phase",
+      "Material"
+   ],
+   "Types": [
+      "<class 'float'>",
+      "<class 'float'>",
+      "<class 'str'>"
+   ],
+   "Notes": [
+      "Measured impedance magnitude (\u03a9)",
+      "Measured phase (\u00b0)",
+      "Material under test"
+   ],
+   "OpenTime": "10:46:30AM, November 11, 2025",
+   "CloseTime": "10:46:46AM, November 11, 2025",
+   "File Duration": 16.214968
+}
