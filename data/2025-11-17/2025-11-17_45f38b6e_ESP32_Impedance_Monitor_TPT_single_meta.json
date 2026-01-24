@@ -1,0 +1,27 @@
+{
+   "Dependencies": "['gui_V3.py', 'brl_data.py', 'icarus.py']",
+   "Ncols": 4,
+   "Nrows": 42,
+   "GitLatestCommit": "Git: commit 06142c621571e7dd3da23dc46a46acff373c4903 gui for bio-impedance",
+   "Names": [
+      "Impedance",
+      "Phase",
+      "Material",
+      "Trial"
+   ],
+   "Types": [
+      "<class 'float'>",
+      "<class 'float'>",
+      "<class 'str'>",
+      "<class 'int'>"
+   ],
+   "Notes": [
+      "Measured impedance magnitude (\u03a9)",
+      "Measured phase (\u00b0)",
+      "Material under test",
+      "Trial number for this material"
+   ],
+   "OpenTime": "12:45:45PM, November 17, 2025",
+   "CloseTime": "12:47:20PM, November 17, 2025",
+   "File Duration": 94.406958
+}
