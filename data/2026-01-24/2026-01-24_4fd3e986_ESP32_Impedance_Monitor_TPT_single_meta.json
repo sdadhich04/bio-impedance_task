@@ -1,0 +1,27 @@
+{
+   "Dependencies": "['gui_V5.py', 'brl_data.py', 'icarus.py']",
+   "Ncols": 4,
+   "Nrows": 0,
+   "GitLatestCommit": "Git: commit 418229c42d8de3f8d382b2f42ede43b811407ff5 adding GUI",
+   "Names": [
+      "Impedance",
+      "Phase",
+      "Material",
+      "TestTaker"
+   ],
+   "Types": [
+      "<class 'float'>",
+      "<class 'float'>",
+      "<class 'str'>",
+      "<class 'str'>"
+   ],
+   "Notes": [
+      "Measured impedance magnitude (\u03a9)",
+      "Measured phase (\u00b0)",
+      "Material under test (auto-labeled _1, _2, ... each session)",
+      "Name of test taker (from GUI)"
+   ],
+   "OpenTime": "10:54:34AM, January 24, 2026",
+   "CloseTime": "10:56:18AM, January 24, 2026",
+   "File Duration": 103.429937
+}
